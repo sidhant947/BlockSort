@@ -28,7 +28,12 @@ class BlockPiece {
     required this.height,
     required this.colorIndex,
     required this.targetPos,
-  });
+    List<Coord>? originalCells,
+    int? originalWidth,
+    int? originalHeight,
+  })  : originalCells = originalCells ?? cells,
+        originalWidth = originalWidth ?? width,
+        originalHeight = originalHeight ?? height;
 
   final int id;
   final List<Coord> cells;
@@ -36,11 +41,44 @@ class BlockPiece {
   final int height;
   final int colorIndex;
   final Coord targetPos;
+  final List<Coord> originalCells;
+  final int originalWidth;
+  final int originalHeight;
 
   int get area => cells.length;
 
   List<Coord> placedCoords(int r, int c) {
     return cells.map((cell) => Coord(r + cell.r, c + cell.c)).toList();
+  }
+
+  BlockPiece rotate90() {
+    final rotatedCells =
+        cells.map((cell) => Coord(cell.c, height - 1 - cell.r)).toList();
+    return BlockPiece(
+      id: id,
+      cells: rotatedCells,
+      width: height,
+      height: width,
+      colorIndex: colorIndex,
+      targetPos: targetPos,
+      originalCells: originalCells,
+      originalWidth: originalWidth,
+      originalHeight: originalHeight,
+    );
+  }
+
+  BlockPiece resetRotation() {
+    return BlockPiece(
+      id: id,
+      cells: originalCells,
+      width: originalWidth,
+      height: originalHeight,
+      colorIndex: colorIndex,
+      targetPos: targetPos,
+      originalCells: originalCells,
+      originalWidth: originalWidth,
+      originalHeight: originalHeight,
+    );
   }
 }
 

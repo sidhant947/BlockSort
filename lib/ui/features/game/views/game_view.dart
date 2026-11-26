@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -74,16 +75,44 @@ class _GameViewState extends ConsumerState<GameView> {
       }
     });
 
+    final showHint =
+        settings.isHintEnabled &&
+        !state.isComplete &&
+        !state.isLoading &&
+        state.level != null;
+
     return Scaffold(
       backgroundColor: AppColors.bg,
+      floatingActionButton: showHint
+          ? FloatingActionButton(
+              heroTag: 'hint_fab',
+              onPressed: () {
+                AppHaptics.lightImpact();
+                ref.read(gameViewModelProvider.notifier).revealHint();
+              },
+              backgroundColor: AppColors.surface,
+              elevation: 4,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: AppColors.border, width: 1.5),
+              ),
+              child: const Icon(
+                Icons.lightbulb_rounded,
+                color: Color(0xFFFFCC00),
+                size: 26,
+              ),
+            )
+          : null,
       body: SafeArea(
         child: Stack(
           children: [
             Column(
               children: [
                 Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -116,28 +145,28 @@ class _GameViewState extends ConsumerState<GameView> {
                   child: state.isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : state.error != null
-                          ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    state.error!,
-                                    style: const TextStyle(
-                                      color: Colors.red,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  ElevatedButton(
-                                    onPressed: () => ref
-                                        .read(gameViewModelProvider.notifier)
-                                        .resetLevel(),
-                                    child: const Text('Retry'),
-                                  ),
-                                ],
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                state.error!,
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            )
-                          : _buildGame(state),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: () => ref
+                                    .read(gameViewModelProvider.notifier)
+                                    .resetLevel(),
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        )
+                      : _buildGame(state),
                 ),
               ],
             ),
@@ -152,163 +181,56 @@ class _GameViewState extends ConsumerState<GameView> {
     final level = state.level;
     if (level == null) return const SizedBox.shrink();
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _stat('Moves', '${state.moveCount}', Icons.trending_up_rounded),
-              _verticalDivider(),
-              _stat(
-                'Time',
-                _formatTime(state.elapsedSeconds),
-                Icons.timer_outlined,
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: AspectRatio(
-                aspectRatio: 1.0,
-                child: _buildGrid(state, level),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final trayHeight = math
+            .min((constraints.maxHeight - 45) * 0.30, 200.0)
+            .clamp(160.0, 210.0);
+
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _stat(
+                    'Moves',
+                    '${state.moveCount}',
+                    Icons.trending_up_rounded,
+                  ),
+                  _verticalDivider(),
+                  _stat(
+                    'Time',
+                    _formatTime(state.elapsedSeconds),
+                    Icons.timer_outlined,
+                  ),
+                ],
               ),
             ),
-          ),
-        ),
-        if (state.isComplete)
-          _buildCompletionBottomBar(state)
-        else ...[
-          SizedBox(
-            height: 104,
-            child: _buildPieceTray(state, level),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              GestureDetector(
-                onTap: (state.canUndo && !state.isComplete)
-                    ? () {
-                        AppHaptics.lightImpact();
-                        ref.read(gameViewModelProvider.notifier).undo();
-                      }
-                    : null,
-                child: Opacity(
-                  opacity: (state.canUndo && !state.isComplete) ? 1.0 : 0.35,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 18, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: (state.canUndo && !state.isComplete)
-                            ? AppColors.border
-                            : AppColors.border.withValues(alpha: 0.4),
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.headingDark.withValues(alpha: 0.08),
-                          offset: const Offset(0, 3),
-                          blurRadius: 4,
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.undo_rounded,
-                          color: AppColors.headingDark,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Undo',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.headingDark,
-                          ),
-                        ),
-                      ],
-                    ),
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: AspectRatio(
+                    aspectRatio: 1.0,
+                    child: _buildGrid(state, level),
                   ),
                 ),
               ),
-              if (ref.watch(settingsProvider).isHintEnabled) ...[
-                const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: !state.isComplete
-                      ? () =>
-                          ref.read(gameViewModelProvider.notifier).revealHint()
-                      : null,
-                  child: Opacity(
-                    opacity: !state.isComplete ? 1.0 : 0.35,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: !state.isComplete
-                              ? AppColors.border
-                              : AppColors.border.withValues(alpha: 0.4),
-                          width: 1.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color:
-                                AppColors.headingDark.withValues(alpha: 0.08),
-                            offset: const Offset(0, 3),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.lightbulb_rounded,
-                            color: Color(0xFFFFCC00),
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Hint',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.headingDark,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              'Drag piece to grid or tap to place  |  Tap placed block to return',
-              style: TextStyle(
-                fontSize: 11,
-                color: AppColors.subtext,
-              ),
             ),
-          ),
-        ],
-      ],
+            if (state.isComplete)
+              _buildCompletionBottomBar(state)
+            else ...[
+              SizedBox(
+                height: trayHeight,
+                child: _buildPieceTray(state, level),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ],
+        );
+      },
     );
   }
 
@@ -322,18 +244,17 @@ class _GameViewState extends ConsumerState<GameView> {
       final p = level.getPieceById(state.previewPlacement!.pieceId);
       if (p != null) {
         previewCoords = p
-            .placedCoords(
-              state.previewPlacement!.r,
-              state.previewPlacement!.c,
-            )
+            .placedCoords(state.previewPlacement!.r, state.previewPlacement!.c)
             .toSet();
       }
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final sideLength =
-            math.min(constraints.maxWidth, constraints.maxHeight);
+        final sideLength = math.min(
+          constraints.maxWidth,
+          constraints.maxHeight,
+        );
         final cellSize = sideLength / n;
 
         return DragTarget<BlockPiece>(
@@ -394,8 +315,8 @@ class _GameViewState extends ConsumerState<GameView> {
                             Widget cellWidget;
                             if (pieceId != null) {
                               final piece = level.getPieceById(pieceId);
-                              final theme = _blockThemes[
-                                  (piece?.colorIndex ?? pieceId) %
+                              final theme =
+                                  _blockThemes[(piece?.colorIndex ?? pieceId) %
                                       _blockThemes.length];
                               cellWidget = GestureDetector(
                                 onTap: () {
@@ -419,20 +340,21 @@ class _GameViewState extends ConsumerState<GameView> {
                                 ),
                               );
                             } else if (isPreview) {
-                              final previewPiece = state.previewPlacement != null
+                              final previewPiece =
+                                  state.previewPlacement != null
                                   ? level.getPieceById(
-                                      state.previewPlacement!.pieceId)
+                                      state.previewPlacement!.pieceId,
+                                    )
                                   : null;
-                              final previewTheme = _blockThemes[
-                                  (previewPiece?.colorIndex ?? 0) %
+                              final previewTheme =
+                                  _blockThemes[(previewPiece?.colorIndex ?? 0) %
                                       _blockThemes.length];
 
                               cellWidget = Container(
                                 margin: const EdgeInsets.all(2.0),
                                 decoration: BoxDecoration(
                                   color: isValidPreview
-                                      ? previewTheme.bg
-                                          .withValues(alpha: 0.75)
+                                      ? previewTheme.bg.withValues(alpha: 0.75)
                                       : Colors.red.withValues(alpha: 0.5),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
@@ -450,7 +372,10 @@ class _GameViewState extends ConsumerState<GameView> {
                                     ref
                                         .read(gameViewModelProvider.notifier)
                                         .placePiece(
-                                            state.selectedPieceId!, r, c);
+                                          state.selectedPieceId!,
+                                          r,
+                                          c,
+                                        );
                                   }
                                 },
                                 child: Container(
@@ -463,7 +388,8 @@ class _GameViewState extends ConsumerState<GameView> {
                                     border: isDark
                                         ? Border.all(
                                             color: AppColors.gridLines,
-                                            width: 1.0)
+                                            width: 1.0,
+                                          )
                                         : null,
                                     boxShadow: [
                                       BoxShadow(
@@ -500,48 +426,51 @@ class _GameViewState extends ConsumerState<GameView> {
       return const SizedBox.shrink();
     }
 
+    final isHintEnabled = ref.watch(settingsProvider).isHintEnabled;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Center(
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+      // padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.vertical,
+        physics: const BouncingScrollPhysics(),
+        padding: EdgeInsets.only(bottom: isHintEnabled ? 56 : 4),
+        child: Center(
+          child: Wrap(
+            spacing: 8.0,
+            runSpacing: 8.0,
+            alignment: WrapAlignment.center,
             children: unplaced.map((piece) {
               final isSelected = state.selectedPieceId == piece.id;
               final theme =
                   _blockThemes[piece.colorIndex % _blockThemes.length];
 
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6.0),
-                child: Draggable<BlockPiece>(
-                  data: piece,
-                  feedback: Material(
-                    color: Colors.transparent,
-                    child: Transform.scale(
-                      scale: 1.15,
-                      child: _renderPieceWidget(piece, theme, cellSize: 24),
-                    ),
+              return Draggable<BlockPiece>(
+                data: piece,
+                feedback: Material(
+                  color: Colors.transparent,
+                  child: Transform.scale(
+                    scale: 1.15,
+                    child: _renderPieceWidget(piece, theme, cellSize: 24),
                   ),
-                  childWhenDragging: Opacity(
-                    opacity: 0.3,
-                    child: _pieceCard(piece, theme, isSelected: false),
-                  ),
-                  onDragStarted: () {
-                    AppHaptics.selectionClick();
+                ),
+                childWhenDragging: Opacity(
+                  opacity: 0.3,
+                  child: _pieceCard(piece, theme, isSelected: false),
+                ),
+                onDragStarted: () {
+                  AppHaptics.selectionClick();
+                },
+                onDragEnd: (_) {
+                  ref.read(gameViewModelProvider.notifier).clearPreview();
+                },
+                child: GestureDetector(
+                  onTap: () {
+                    ref
+                        .read(gameViewModelProvider.notifier)
+                        .rotatePiece(piece.id);
                   },
-                  onDragEnd: (_) {
-                    ref.read(gameViewModelProvider.notifier).clearPreview();
-                  },
-                  child: GestureDetector(
-                    onTap: () {
-                      ref
-                          .read(gameViewModelProvider.notifier)
-                          .selectPiece(piece.id);
-                    },
-                    child: _pieceCard(piece, theme, isSelected: isSelected),
-                  ),
+                  child: _pieceCard(piece, theme, isSelected: isSelected),
                 ),
               );
             }).toList(),
@@ -557,12 +486,12 @@ class _GameViewState extends ConsumerState<GameView> {
     required bool isSelected,
   }) {
     final maxDim = math.max(piece.width, piece.height);
-    final double cellSize = math.min(48.0 / maxDim, 15.0);
+    final double cellSize = math.min(44.0 / maxDim, 14.0);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
-      width: 72,
-      height: 72,
+      width: 68,
+      height: 68,
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
@@ -654,10 +583,7 @@ class _GameViewState extends ConsumerState<GameView> {
           decoration: BoxDecoration(
             color: AppColors.surface,
             shape: BoxShape.circle,
-            border: Border.all(
-              color: AppColors.border,
-              width: 1.5,
-            ),
+            border: Border.all(color: AppColors.border, width: 1.5),
             boxShadow: [
               BoxShadow(
                 color: AppColors.headingDark.withValues(alpha: 0.08),
@@ -666,11 +592,7 @@ class _GameViewState extends ConsumerState<GameView> {
               ),
             ],
           ),
-          child: Icon(
-            icon,
-            size: iconSize,
-            color: AppColors.headingDark,
-          ),
+          child: Icon(icon, size: iconSize, color: AppColors.headingDark),
         ),
       ),
     );
@@ -686,11 +608,7 @@ class _GameViewState extends ConsumerState<GameView> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          icon,
-          size: 15,
-          color: AppColors.headingDark,
-        ),
+        Icon(icon, size: 15, color: AppColors.headingDark),
         const SizedBox(height: 3),
         Text(
           value,
@@ -714,11 +632,7 @@ class _GameViewState extends ConsumerState<GameView> {
   }
 
   Widget _verticalDivider() {
-    return Container(
-      width: 1,
-      height: 32,
-      color: AppColors.gridLines,
-    );
+    return Container(width: 1, height: 32, color: AppColors.gridLines);
   }
 
   Future<void> _onLevelComplete(GameViewModelState state) async {
@@ -884,17 +798,19 @@ class _ConfettiExplosionState extends State<ConfettiExplosion>
     for (int i = 0; i < 80; i++) {
       final double angle = _random.nextDouble() * 2 * math.pi;
       final double speed = 150 + _random.nextDouble() * 250;
-      _particles.add(ConfettiParticle(
-        x: 0.5,
-        y: 0.4,
-        vx: math.cos(angle) * speed,
-        vy: math.sin(angle) * speed - 150,
-        size: 6 + _random.nextDouble() * 8,
-        rotation: _random.nextDouble() * 2 * math.pi,
-        rotationSpeed: (_random.nextDouble() - 0.5) * 10,
-        color: colors[_random.nextInt(colors.length)],
-        isCircle: _random.nextBool(),
-      ));
+      _particles.add(
+        ConfettiParticle(
+          x: 0.5,
+          y: 0.4,
+          vx: math.cos(angle) * speed,
+          vy: math.sin(angle) * speed - 150,
+          size: 6 + _random.nextDouble() * 8,
+          rotation: _random.nextDouble() * 2 * math.pi,
+          rotationSpeed: (_random.nextDouble() - 0.5) * 10,
+          color: colors[_random.nextInt(colors.length)],
+          isCircle: _random.nextBool(),
+        ),
+      );
     }
     _controller.forward(from: 0.0);
   }
@@ -949,7 +865,10 @@ class ConfettiPainter extends CustomPainter {
       } else {
         canvas.drawRect(
           Rect.fromCenter(
-              center: Offset.zero, width: p.size, height: p.size * 0.6),
+            center: Offset.zero,
+            width: p.size,
+            height: p.size * 0.6,
+          ),
           paint,
         );
       }

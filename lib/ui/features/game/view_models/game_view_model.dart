@@ -263,6 +263,32 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
     }
   }
 
+  void rotatePiece(int pieceId) {
+    final level = state.level;
+    if (state.isComplete || level == null) return;
+    final isPlaced = state.placedPieces.any((p) => p.pieceId == pieceId);
+    if (isPlaced) return;
+
+    final updatedPieces = level.pieces.map((p) {
+      if (p.id == pieceId) {
+        return p.rotate90();
+      }
+      return p;
+    }).toList();
+
+    AppHaptics.selectionClick();
+
+    state = state.copyWith(
+      level: GameLevel(
+        levelNumber: level.levelNumber,
+        gridSize: level.gridSize,
+        pieces: updatedPieces,
+      ),
+      selectedPieceId: pieceId,
+      clearPreview: true,
+    );
+  }
+
   void updatePreview(int pieceId, int r, int c) {
     final level = state.level;
     if (state.isComplete || level == null) return;
@@ -415,12 +441,23 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
 
     _pushUndo();
 
-    final hintCoords = piece.placedCoords(hintPlaced.r, hintPlaced.c).toSet();
+    final resetPiece = piece.resetRotation();
+    final updatedPieces = level.pieces
+        .map((p) => p.id == resetPiece.id ? resetPiece : p)
+        .toList();
+    final currentLevel = GameLevel(
+      levelNumber: level.levelNumber,
+      gridSize: level.gridSize,
+      pieces: updatedPieces,
+    );
+
+    final hintCoords =
+        resetPiece.placedCoords(hintPlaced.r, hintPlaced.c).toSet();
     final updated = <PlacedPiece>[];
 
     for (final placed in state.placedPieces) {
       if (placed.pieceId == hintPlaced.pieceId) continue;
-      final p = level.getPieceById(placed.pieceId);
+      final p = currentLevel.getPieceById(placed.pieceId);
       if (p == null) continue;
       final coords = p.placedCoords(placed.r, placed.c);
       final hasOverlap = coords.any((c) => hintCoords.contains(c));
@@ -431,7 +468,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
 
     updated.add(hintPlaced);
 
-    final isComplete = CellRules.isComplete(updated, level);
+    final isComplete = CellRules.isComplete(updated, currentLevel);
     if (isComplete) {
       AppHaptics.heavyImpact();
       AppHaptics.vibrate();
@@ -441,6 +478,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
     }
 
     state = state.copyWith(
+      level: currentLevel,
       placedPieces: updated,
       moveCount: state.moveCount + 1,
       isComplete: isComplete,
